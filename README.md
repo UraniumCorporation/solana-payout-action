@@ -23,6 +23,7 @@ A GitHub Action to automatically pay SOL/SPL tokens to a specified recipient wal
     amount: "1.5" # Amount in SOL
     token: "SOL"
     network: "mainnet-beta" # Optional (default: mainnet-beta)
+    timeout: 300000 # Optional (default: 300000ms = 5 minutes)
   env:
     SENDER_WALLET_SECRET: ${{ secrets.SENDER_WALLET_SECRET }}
 
@@ -33,6 +34,7 @@ A GitHub Action to automatically pay SOL/SPL tokens to a specified recipient wal
     amount: "10" # Amount in tokens
     token: "TOKEN_ADDRESS" # SPL token address
     network: "mainnet-beta" # Optional (default: mainnet-beta)
+    timeout: 300000 # Optional (default: 300000ms = 5 minutes)
   env:
     SENDER_WALLET_SECRET: ${{ secrets.SENDER_WALLET_SECRET }}
 ```
