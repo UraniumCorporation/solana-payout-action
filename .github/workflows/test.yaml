@@ -23,6 +23,11 @@ on:
           - mainnet-beta
           - devnet
           - testnet
+      timeout:
+        description: "Timeout to confirm the transaction in milliseconds"
+        required: false
+        default: 300000
+        type: number
 
 jobs:
   test-local:
@@ -40,6 +45,7 @@ jobs:
           amount: ${{ inputs.amount }}
           network: ${{ inputs.network }}
           token: ${{ inputs.token }}
+          timeout: ${{ inputs.timeout }}
         env:
           SENDER_WALLET_SECRET: ${{ secrets.SENDER_WALLET_SECRET }}
 

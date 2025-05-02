@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { getInput, setOutput, setFailed } from "@actions/core";
 
-import { SolanaPayoutService } from "./lib";
+import { SolanaPayoutService } from "./lib/solana";
 
 /**
  * Main function to execute the Solana Payout GitHub Action
@@ -28,6 +28,9 @@ async function main(): Promise<void> {
       getInput("network", { required: false, trimWhitespace: true }) ||
       "mainnet-beta";
     const token = getInput("token", { required: true, trimWhitespace: true });
+    const timeout = parseInt(
+      getInput("timeout", { required: false, trimWhitespace: true })
+    );
 
     // Create, initialize, and execute the payment service
     const payoutService = new SolanaPayoutService(
@@ -35,7 +38,8 @@ async function main(): Promise<void> {
       recipientWalletAddress,
       amount,
       token,
-      network
+      network,
+      timeout
     );
 
     await payoutService.initialize();

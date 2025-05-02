@@ -18,6 +18,10 @@ inputs:
   token:
     description: "Token to send - either 'SOL' or an SPL token address"
     required: true
+  timeout:
+    description: "Timeout to confirm the transaction in milliseconds"
+    required: false
+    default: 300000
 outputs:
   success:
     description: "Whether the payment was successful"
