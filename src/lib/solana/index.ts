@@ -20,7 +20,7 @@ import {
   NETWORK_URLS,
   TRANSACTION_FEE_BUFFER,
   TOKEN_ACCOUNT_CREATION_COST,
-} from "../constants";
+} from "../../constants";
 
 /**
  * SolanaPayoutService - A class to handle Solana payments
