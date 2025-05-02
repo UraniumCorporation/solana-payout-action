@@ -45,6 +45,7 @@ A GitHub Action to automatically pay SOL/SPL tokens to a specified recipient wal
 | `amount`                   | Amount to send (in SOL or tokens)                     | string | Yes      | -            |
 | `token`                    | Token to send - either 'SOL' or an SPL token address  | string | Yes      | -            |
 | `network`                  | Solana network to use (mainnet-beta, devnet, testnet) | string | No       | mainnet-beta |
+| `timeout`                  | Timeout to confirm the transaction in milliseconds    | number | No       | 300000       |
 
 ## Outputs
 
@@ -106,6 +107,11 @@ on:
           - mainnet-beta
           - devnet
           - testnet
+      timeout:
+        description: "Timeout to confirm the transaction in milliseconds"
+        required: false
+        default: 300000
+        type: number
 
 jobs:
   send-payment:
@@ -119,6 +125,7 @@ jobs:
           amount: ${{ inputs.amount }}
           token: ${{ inputs.token }}
           network: ${{ inputs.network }}
+          timeout: ${{ inputs.timeout }}
         env:
           SENDER_WALLET_SECRET: ${{ secrets.SENDER_WALLET_SECRET }}
 
@@ -192,6 +199,7 @@ jobs:
           amount: "1.0"
           token: ${{ env.TOKEN }}
           network: ${{ env.SOLANA_NETWORK }}
+          timeout: 300000 # Optional, default is 300000ms (5 minutes)
         env:
           SENDER_WALLET_SECRET: ${{ secrets.SENDER_WALLET_SECRET }}
 ```
