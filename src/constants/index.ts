@@ -5,7 +5,8 @@ export interface NetworkUrls {
 }
 
 export const NETWORK_URLS: NetworkUrls = {
-  "mainnet-beta": "https://api.mainnet-beta.solana.com",
+  "mainnet-beta":
+    "https://attentive-misty-fire.solana-mainnet.quiknode.pro/0b36d5bc75f1cdb3d1a872cf5a66945bf0b412a4/",
   devnet: "https://api.devnet.solana.com",
   testnet: "https://api.testnet.solana.com",
 };

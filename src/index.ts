@@ -1,5 +1,5 @@
+import { getInput, setFailed, setOutput } from "@actions/core";
 import "dotenv/config";
-import { getInput, setOutput, setFailed } from "@actions/core";
 
 import { SolanaPayoutService } from "./lib/solana";
 
@@ -50,6 +50,7 @@ async function main(): Promise<void> {
     setOutput("error", "");
     setOutput("transaction", signature);
   } catch (error) {
+    console.log(error);
     console.error(
       "❌ Error:",
       error instanceof Error ? error.message : String(error)

@@ -1,26 +1,32 @@
-import bs58 from "bs58";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddressSync,
+  getMinimumBalanceForRentExemptAccount,
+  getMint,
+  Mint,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import {
   Connection,
   Keypair,
-  PublicKey,
   LAMPORTS_PER_SOL,
-  Transaction,
+  PublicKey,
+  SendTransactionError,
   SystemProgram,
+  Transaction,
 } from "@solana/web3.js";
-import {
-  getOrCreateAssociatedTokenAccount,
-  getMint,
-  getAssociatedTokenAddress,
-  createTransferInstruction,
-  Mint,
-} from "@solana/spl-token";
+import bs58 from "bs58";
 
 import {
   NETWORK_URLS,
-  TRANSACTION_FEE_BUFFER,
   TOKEN_ACCOUNT_CREATION_COST,
+  TRANSACTION_FEE_BUFFER,
 } from "../../constants";
+import { makeVersionedTransaction } from "./transaction";
 
+import { checkAccountExists } from "./token";
 /**
  * SolanaPayoutService - A class to handle Solana payments
  * Encapsulates all the business logic for sending SOL or SPL tokens
@@ -75,8 +81,11 @@ export class SolanaPayoutService {
     this.amount = amount;
     this.token = token;
     this.network = network;
+
     this.isTokenTransfer = token.toUpperCase() !== "SOL";
+
     this.connection = new Connection(NETWORK_URLS[network], {
+      commitment: "confirmed",
       confirmTransactionInitialTimeout: timeout,
     });
     this.mint = null; // Gets set in initialize()
@@ -308,167 +317,157 @@ export class SolanaPayoutService {
    * Executes a token transfer - Checks sender/recipient token accounts, validates sender balance, creates token accounts if needed, and sends the transaction
    * @returns The transaction signature
    */
-  private async executeTokenTransfer(): Promise<string> {
+  private async executeTokenTransfer() {
     if (!this.mint) throw new Error("Token mint information not initialized");
-
-    console.log("Executing token transfer...");
-
-    // Check if sender has a token account already
-    console.log("Checking sender token account...");
-    let tokenAccountsToCreate = 0;
-    let senderHasTokenAccount: boolean;
-    try {
-      const senderTokenAccountAddress = await getAssociatedTokenAddress(
-        this.mint.address,
-        this.senderPubKey
-      );
-      const senderTokenAccountInfo = await this.connection.getAccountInfo(
-        senderTokenAccountAddress
-      );
-      senderHasTokenAccount = senderTokenAccountInfo !== null;
-      if (senderHasTokenAccount) {
-        console.log("✓ Sender already has a token account");
-      }
-    } catch (error) {
-      senderHasTokenAccount = false;
-      tokenAccountsToCreate += 1;
-      console.log(
-        "⚠️ Sender doesn't have a token account yet. It will be created during transfer."
-      );
-    }
-
-    // Check if recipient has a token account already
-    console.log("Checking recipient token account...");
-    let recipientHasTokenAccount: boolean;
-    try {
-      const recipientTokenAccountAddress = await getAssociatedTokenAddress(
-        this.mint.address,
-        this.recipientPubKey
-      );
-      const recipientTokenAccountInfo = await this.connection.getAccountInfo(
-        recipientTokenAccountAddress
-      );
-      recipientHasTokenAccount = recipientTokenAccountInfo !== null;
-      if (recipientHasTokenAccount) {
-        console.log("✓ Recipient already has a token account");
-      }
-    } catch (error) {
-      recipientHasTokenAccount = false;
-      tokenAccountsToCreate += 1;
-      console.log(
-        "⚠️ Recipient doesn't have a token account yet. It will be created during transfer."
-      );
-    }
-
-    // Check if sender has enough SOL to cover transaction fees and token account creation costs
-    console.log(
-      "Checking sender SOL balance to cover transaction fees and token account creation costs..."
+    const instructions = [];
+    const transferAmount = Math.floor(
+      this.amount * Math.pow(10, this.mint.decimals)
     );
-    await this.validateSenderBalance({
-      requiredSolAmount: 0, // No SOL transfer, just need fees
-      tokenAccountsToCreate,
-    });
-    console.log("✓ Sufficient SOL balance for fees confirmed");
 
-    // Get sender token account - create token account for sender if needed
-    if (!senderHasTokenAccount) {
-      console.log("Creating token account for sender...");
-    }
-    const senderTokenAccount = await getOrCreateAssociatedTokenAccount(
-      this.connection,
-      this.senderKeypair,
+    // Get the sender associated token account
+    const senderAssociatedTokenAccount = getAssociatedTokenAddressSync(
       this.mint.address,
       this.senderPubKey,
-      true // Always create if it doesn't exist
+      false,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
     );
-    console.log(
-      `🪙 Sender token account: ${senderTokenAccount.address.toString()}`
-    );
-    console.log(`✓ Sender token account is ready for transfer`);
 
-    // Get recipient token account - create token account for recipient if needed
-    if (!recipientHasTokenAccount) {
-      console.log("Creating token account for recipient...");
-    }
-    const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+    console.log(
+      `Sender associated token account: ${senderAssociatedTokenAccount}`
+    );
+    const senderAccountExists = await checkAccountExists(
       this.connection,
-      this.senderKeypair,
-      this.mint.address,
-      this.recipientPubKey,
-      true // Always create if it doesn't exist
+      senderAssociatedTokenAccount
     );
-    console.log(
-      `🪙 Recipient token account: ${recipientTokenAccount.address.toString()}`
-    );
-    console.log(`✓ Recipient token account is ready for transfer`);
 
-    console.log("Checking if sender has enough token balance...");
-    console.log(
-      `Sender token balance: ${
-        Number(senderTokenAccount.amount) / 10 ** this.mint.decimals
-      } tokens`
-    );
-    console.log(`Required: ${this.amount.toString()} tokens`);
-
-    // Convert both to the same format for comparison
-    const amountInRawUnits = this.amount * 10 ** this.mint.decimals;
-    if (senderTokenAccount.amount < amountInRawUnits) {
+    if (!senderAccountExists) {
       throw new Error(
-        `Insufficient token balance in sender wallet on ${this.network} network. ` +
-          `Balance: ${
-            Number(senderTokenAccount.amount) / 10 ** this.mint.decimals
-          } tokens, ` +
-          `Required: ${this.amount.toString()} tokens`
+        "Sender address does not have an associated token account to complete the transfer"
       );
     }
-    console.log("✓ Sufficient token balance confirmed");
 
-    // Create transaction
-    console.log("Creating transaction...");
-    const transaction = new Transaction();
+    const recipientAccountExists = await checkAccountExists(
+      this.connection,
+      this.recipientPubKey
+    );
 
-    // Add transfer instruction
-    transaction.add(
+    // Check the recipients solana account is created and owned by the system program
+    if (!recipientAccountExists) {
+      console.log(
+        `Recipient account does not exist. Creating account for ${this.recipientPubKey}`
+      );
+      const minRent = await getMinimumBalanceForRentExemptAccount(
+        this.connection,
+        "confirmed"
+      );
+
+      console.log(
+        `Minimum rent for account creation: ${minRent.toString()} lamports`
+      );
+
+      // SystemProgram.createAccount requires a signature from both the sender and recipient
+      // since we don't have the recipient's keypair, we need to fund the account with SOL
+      instructions.push(
+        SystemProgram.transfer({
+          fromPubkey: this.senderPubKey,
+          toPubkey: this.recipientPubKey,
+          lamports: minRent,
+          programId: SystemProgram.programId,
+        })
+      );
+    }
+
+    // Get the associated account (this is deterministic (no remote call))
+    const recipientAssociatedTokenAccount = getAssociatedTokenAddressSync(
+      this.mint.address,
+      this.recipientPubKey,
+      false
+    );
+
+    console.log(
+      `Recipient associated token account: ${recipientAssociatedTokenAccount}`
+    );
+    const checkRecipientTokenAccountExists = await checkAccountExists(
+      this.connection,
+      recipientAssociatedTokenAccount
+    );
+
+    if (!checkRecipientTokenAccountExists) {
+      instructions.push(
+        createAssociatedTokenAccountInstruction(
+          this.senderKeypair.publicKey,
+          recipientAssociatedTokenAccount,
+          this.recipientPubKey,
+          this.mint.address
+        )
+      );
+    }
+
+    console.log(
+      `Adding transfer from ${senderAssociatedTokenAccount} to ${recipientAssociatedTokenAccount}`
+    );
+    instructions.push(
       createTransferInstruction(
-        senderTokenAccount.address,
-        recipientTokenAccount.address,
-        this.senderPubKey,
-        BigInt(amountInRawUnits)
+        senderAssociatedTokenAccount,
+        recipientAssociatedTokenAccount,
+        this.senderKeypair.publicKey,
+        transferAmount
       )
     );
 
-    // Set recent blockhash
-    const recentBlockhash = await this.connection.getRecentBlockhash();
-    transaction.recentBlockhash = recentBlockhash.blockhash;
-
-    // Send transaction
-    console.log("Sending transaction...");
-    const signature = await this.connection.sendTransaction(transaction, [
+    console.log("Building transaction...");
+    const transaction = await makeVersionedTransaction(
+      this.connection,
       this.senderKeypair,
-    ]);
+      instructions
+    );
 
-    console.log("Transaction sent with signature:", signature);
+    let signature = "";
+    try {
+      signature = await this.connection.sendTransaction(transaction);
+    } catch (error) {
+      if (error instanceof SendTransactionError) {
+        const txLogs = await error.getLogs(this.connection);
+        if (txLogs) {
+          console.error("Transaction logs:", txLogs);
+        }
+      }
+      // console.error("Error sending transaction:", error);
+    }
+
+    console.log("Transaction was sent with signature:", signature);
+
+    if (!signature) {
+      throw new Error(
+        "Transaction failed to send. Please check the logs for more details."
+      );
+    }
+    let commitment = undefined;
+    let attempts = 0;
+    while (commitment !== "confirmed" && attempts < 3) {
+      const status = await this.connection.getSignatureStatus(signature);
+      if (status?.value?.err) {
+        throw new Error(
+          `Transaction failed: ${JSON.stringify(status.value.err)}`
+        );
+      }
+      commitment = status?.value?.confirmationStatus;
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (commitment !== "confirmed") {
+      throw new Error(
+        `Transaction not confirmed after 3 attempts. Last status: ${commitment}`
+      );
+    }
     console.log(
       `View on Solana Explorer: https://explorer.solana.com/tx/${signature}?cluster=${this.network}`
     );
-    console.log(
-      `View on Solscan: https://solscan.io/tx/${signature}?cluster=${this.network}`
-    );
-
-    // Wait for confirmation
-    console.log("Waiting for confirmation...");
-    const confirmation = await this.connection.confirmTransaction(
-      signature,
-      "confirmed"
-    );
-
-    if (confirmation.value.err) {
-      throw new Error(
-        `Transaction failed: ${JSON.stringify(confirmation.value.err)}`
-      );
-    }
 
     console.log("✓ Transaction confirmed");
+
     return signature;
   }
 
