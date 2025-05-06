@@ -24,6 +24,7 @@
     "release:dry": "release-it --dry-run --ci",
     "release:info": "release-it --release-version",
     "contributors": "tsx scripts/contributors.ts",
+    "patch": "tsx scripts/patch.ts",
     "commit": "cz",
     "commitlint": "commitlint --edit",
     "prettier": "prettier --write ."
