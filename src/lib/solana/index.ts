@@ -633,41 +633,11 @@ export class SolanaPayoutService {
       throw new Error("Token mint information not initialized");
     }
 
+    let senderTokenAccount;
     try {
-      const senderTokenAccount = await this.connection.getTokenAccountBalance(
+      senderTokenAccount = await this.connection.getTokenAccountBalance(
         senderAssociatedTokenAccount
       );
-
-      const senderTokenBalance = senderTokenAccount.value.uiAmount;
-      this.logger.info(
-        `Required tokens to send: ${this.amount} ${this.mint.address}`,
-        {
-          required: this.amount,
-          token: this.mint.address
-        }
-      );
-      this.logger.info(
-        `Sender token balance: ${senderTokenBalance} ${this.mint.address}`,
-        {
-          senderAssociatedTokenAccount,
-          senderTokenBalance
-        }
-      );
-
-      if (!senderTokenBalance || senderTokenBalance < this.amount) {
-        this.logger.error(
-          `Insufficient funds in sender token account on ${this.network} network. Balance: ${senderTokenBalance} ${this.mint.address}, Required: ${this.amount} ${this.mint.address}`,
-          {
-            network: this.network,
-            senderAssociatedTokenAccount,
-            senderTokenBalance,
-            required: this.amount
-          }
-        );
-        throw new Error(
-          `Insufficient funds in sender token account on ${this.network} network. Balance: ${senderTokenBalance} ${this.mint.address}, Required: ${this.amount} ${this.mint.address}`
-        );
-      }
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.logger.error(
@@ -682,6 +652,37 @@ export class SolanaPayoutService {
         stack: error.stack
       });
       throw err;
+    }
+
+    const senderTokenBalance = senderTokenAccount.value.uiAmount;
+    this.logger.info(
+      `Required tokens to send: ${this.amount} ${this.mint.address}`,
+      {
+        required: this.amount,
+        token: this.mint.address
+      }
+    );
+    this.logger.info(
+      `Sender token balance: ${senderTokenBalance} ${this.mint.address}`,
+      {
+        senderAssociatedTokenAccount,
+        senderTokenBalance
+      }
+    );
+
+    if (!senderTokenBalance || senderTokenBalance < this.amount) {
+      this.logger.error(
+        `Insufficient funds in sender token account on ${this.network} network. Balance: ${senderTokenBalance} ${this.mint.address}, Required: ${this.amount} ${this.mint.address}`,
+        {
+          network: this.network,
+          senderAssociatedTokenAccount,
+          senderTokenBalance,
+          required: this.amount
+        }
+      );
+      throw new Error(
+        `Insufficient funds in sender token account on ${this.network} network. Balance: ${senderTokenBalance} ${this.mint.address}, Required: ${this.amount} ${this.mint.address}`
+      );
     }
   }
 
