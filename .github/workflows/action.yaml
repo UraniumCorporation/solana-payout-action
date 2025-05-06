@@ -1,5 +1,6 @@
 ---
 name: 💰 Solana Payout Action
+run-name: "💰 Solana Payout Action - Manually Triggered by @${{ github.actor }}"
 on:
   # Manual trigger with inputs
   workflow_dispatch:
@@ -29,6 +30,9 @@ on:
         required: false
         default: 300000
         type: number
+
+permissions:
+  contents: read # Needed for the checkout action
 
 jobs:
   solana-payout:
